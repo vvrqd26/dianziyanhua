@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>全平台优化电子烟花</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let fireworks = [];
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+        function calculateExplosionHeight() {
+            const aspectRatio = window.innerHeight / window.innerWidth;
+            let baseHeight = isMobile ? 0.4 : 0.3;
+            if(aspectRatio > 1.8) baseHeight += 0.1;
+            return window.innerHeight * (baseHeight + Math.min(aspectRatio, 2) * 0.08);
+        }
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        class Particle {
+            constructor(x, y, hue) {
+                this.x = x;
+                this.y = y;
+                this.hue = hue;
+                this.radius = Math.random() * 3 + 1;
+                this.life = 1;
+                this.decay = 0.008 + Math.random() * 0.015;
+                this.baseSpeed = isMobile ? 14 : 10;
+                this.speed = {
+                    x: (Math.random() - 0.5) * this.baseSpeed,
+                    y: (Math.random() - 0.5) * this.baseSpeed - 3
+                };
+                this.gravity = 0.12;
+                this.type = ['circle', 'star', 'spark'][Math.floor(Math.random() * 3)];
+                this.angle = 0;
+                this.sparkLength = 5 + Math.random() * 5;
+            }
+
+            update() {
+                this.speed.x *= 0.96;
+                this.speed.y += this.gravity;
+                this.x += this.speed.x;
+                this.y += this.speed.y;
+                this.life -= this.decay;
+                this.angle += 0.15;
+            }
+
+            draw() {
+                const alpha = Math.min(this.life, 1);
+                const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius * 2);
+                gradient.addColorStop(0, `hsla(${this.hue}, 100%, 70%, ${alpha})`);
+                gradient.addColorStop(1, `hsla(${this.hue + 20}, 100%, 50%, 0)`);
+
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                
+                switch(this.type) {
+                    case 'circle':
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                        ctx.fillStyle = gradient;
+                        ctx.fill();
+                        break;
+                    case 'star':
+                        ctx.translate(this.x, this.y);
+                        ctx.rotate(this.angle);
+                        ctx.beginPath();
+                        for(let i = 0; i < 5; i++) {
+                            const angle = i * 0.4 * Math.PI;
+                            ctx.lineTo(Math.sin(angle) * this.radius * 1.8, Math.cos(angle) * this.radius * 1.8);
+                        }
+                        ctx.closePath();
+                        ctx.fillStyle = gradient;
+                        ctx.fill();
+                        break;
+                    case 'spark':
+                        ctx.beginPath();
+                        ctx.moveTo(this.x, this.y);
+                        ctx.lineTo(this.x - this.speed.x * this.sparkLength, this.y - this.speed.y * this.sparkLength);
+                        ctx.strokeStyle = gradient;
+                        ctx.lineWidth = 2.5;
+                        ctx.lineCap = 'round';
+                        ctx.stroke();
+                        break;
+                }
+                ctx.restore();
+            }
+        }
+
+        class Firework {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = canvas.height + 200;
+                this.targetY = calculateExplosionHeight();
+                this.speed = isMobile ? 20 : 16 + Math.random() * 4;
+                this.angle = Math.atan2(this.targetY - this.y, canvas.width/2 - this.x + (Math.random() - 0.5) * 300);
+                this.velocity = {
+                    x: Math.cos(this.angle) * this.speed,
+                    y: Math.sin(this.angle) * this.speed
+                };
+                this.particles = [];
+                this.exploded = false;
+                this.hue = Math.random() * 360;
+                this.bloomSize = isMobile ? 120 : 150 + Math.random() * 150;
+                this.sparkCount = isMobile ? 250 : 300 + Math.random() * 300;
+                this.explosionType = Math.random() > 0.9 ? 'spiral' : 'normal';
+                this.type = Math.random() > 0.7 ? 'trail' : 'normal';
+                this.trail = [];
+                this.spiralAngle = 0;
+            }
+
+            update() {
+                if (!this.exploded) {
+                    if(this.type === 'trail') {
+                        this.trail.push({x: this.x, y: this.y});
+                        if(this.trail.length > 15) this.trail.shift();
+                    }
+
+                    if(this.type === 'spiral') {
+                        this.spiralAngle += 0.3;
+                        this.velocity.x = Math.cos(this.spiralAngle) * 6;
+                        this.velocity.y = -this.speed * 0.8 + Math.sin(this.spiralAngle) * 2;
+                    }
+
+                    this.velocity.y += isMobile ? 0.22 : 0.18;
+                    this.x += this.velocity.x;
+                    this.y += this.velocity.y;
+
+                    const minHeight = canvas.height * 0.35;
+                    const shouldExplode = this.y <= this.targetY || (this.y <= minHeight && this.velocity.y < -1.5);
+                    
+                    if (shouldExplode) this.explode();
+                }
+
+                this.particles.forEach((p, i) => {
+                    p.update();
+                    if (p.life <= 0) this.particles.splice(i, 1);
+                });
+            }
+
+            explode() {
+                if(this.exploded) return;
+                this.exploded = true;
+                
+                if(this.explosionType === 'spiral') {
+                    const spiralDensity = isMobile ? 12 : 10;
+                    for(let i = 0; i < this.sparkCount; i++) {
+                        const angle = (i / this.sparkCount) * Math.PI * spiralDensity;
+                        const speed = isMobile ? 9 : 7 + Math.random() * 4;
+                        const particle = new Particle(this.x, this.y, this.hue + i);
+                        particle.speed = {
+                            x: Math.cos(angle) * speed * 2,
+                            y: Math.sin(angle) * speed * 2
+                        };
+                        particle.gravity = 0.08;
+                        this.particles.push(particle);
+                    }
+                } else {
+                    for(let i = 0; i < this.sparkCount; i++) {
+                        const particle = new Particle(this.x, this.y, this.hue + i * 0.2);
+                        if(Math.random() < 0.15) {
+                            particle.speed = {
+                                x: (Math.random() - 0.5) * (isMobile ? 30 : 25),
+                                y: (Math.random() - 0.5) * (isMobile ? 30 : 25) - 8
+                            };
+                            particle.decay = 0.006;
+                            particle.gravity = 0.06;
+                        }
+                        this.particles.push(particle);
+                    }
+                }
+            }
+
+            draw() {
+                if (!this.exploded) {
+                    if(this.type === 'trail') {
+                        this.trail.forEach((pos, index) => {
+                            const alpha = index / this.trail.length;
+                            ctx.beginPath();
+                            ctx.arc(pos.x, pos.y, 3 * alpha, 0, Math.PI * 2);
+                            ctx.fillStyle = `hsla(${this.hue}, 100%, 75%, ${alpha * 0.6})`;
+                            ctx.fill();
+                        });
+                    }
+
+                    if(this.type === 'spiral') {
+                        ctx.beginPath();
+                        ctx.moveTo(this.trail[0]?.x || this.x, this.trail[0]?.y || this.y);
+                        this.trail.forEach(pos => ctx.lineTo(pos.x, pos.y));
+                        ctx.strokeStyle = `hsla(${this.hue}, 100%, 75%, 0.4)`;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }
+
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, 4, 0, Math.PI * 2);
+                    ctx.fillStyle = `hsl(${this.hue}, 100%, 75%)`;
+                    ctx.fill();
+                }
+                this.particles.forEach(p => p.draw());
+            }
+        }
+
+        class BackgroundEffect {
+            constructor() {
+                this.particles = [];
+                this.maxParticles = isMobile ? 60 : 100;
+            }
+
+            addParticle() {
+                if(this.particles.length < this.maxParticles) {
+                    this.particles.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        size: Math.random() * 1.8,
+                        alpha: Math.random() * 0.15 + 0.05,
+                        speed: Math.random() * 0.02 + 0.01
+                    });
+                }
+            }
+
+            update() {
+                this.particles.forEach(p => {
+                    p.alpha = Math.abs(Math.sin(Date.now() * p.speed)) * 0.4;
+                    p.size += 0.004;
+                    if(p.size > 2.5) p.size = 1;
+                });
+            }
+
+            draw() {
+                ctx.globalCompositeOperation = 'source-over';
+                this.particles.forEach(p => {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(180, 180, 220, ${p.alpha})`;
+                    ctx.fill();
+                });
+            }
+        }
+
+        const bgEffect = new BackgroundEffect();
+
+        function animate() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            bgEffect.addParticle();
+            bgEffect.update();
+            bgEffect.draw();
+
+            fireworks.forEach(fw => {
+                if(!fw.exploded) fw.targetY = calculateExplosionHeight();
+            });
+
+            if(Math.random() < (isMobile ? 0.035 : 0.045)) {
+                const newFirework = new Firework();
+                if(Math.random() < 0.2) {
+                    newFirework.type = 'spiral';
+                    newFirework.speed *= 0.8;
+                }
+                fireworks.push(newFirework);
+            }
+
+            fireworks.forEach((fw, i) => {
+                fw.update();
+                fw.draw();
+                if(fw.exploded && fw.particles.length === 0) fireworks.splice(i, 1);
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        canvas.addEventListener('touchstart', e => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const fw = new Firework();
+            fw.x = touch.clientX;
+            fw.y = touch.clientY;
+            fw.type = Math.random() > 0.5 ? 'spiral' : 'trail';
+            fw.explode();
+            fireworks.push(fw);
+        });
+
+        canvas.addEventListener('click', e => {
+            const fw = new Firework();
+            fw.x = e.clientX;
+            fw.y = e.clientY;
+            fw.type = Math.random() > 0.5 ? 'spiral' : 'trail';
+            if(fw.type === 'spiral') {
+                fw.speed *= 0.7;
+                fw.targetY = canvas.height * 0.2;
+            }
+            fw.explode();
+            fireworks.push(fw);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
