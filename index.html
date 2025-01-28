@@ -20,7 +20,7 @@
     <canvas id="canvas"></canvas>
     <audio id="audio" src="./1.mp3"></audio>
     <div id="audio_label">
-        点击打开声音 声音: 关
+        点击打开声音
     </div>
 
     <script>
@@ -50,6 +50,10 @@
                     this.audio.pause();
                     this.audio.currentTime = this.start;
                 }, this.duration);
+            }
+
+            destory() {
+                this.audio.remove();
             }
         }
 
@@ -163,6 +167,11 @@
                 this.spiralAngle = 0;
                 this.audio1 = new AudioClip(0,1000)
                 this.audio2 = new AudioClip(14,1000)
+            }
+
+            destory() {
+                this.audio1.destory();
+                this.audio2.destory();
             }
 
             update() {
@@ -325,7 +334,11 @@
                 if (fw.y < canvas.height) {
                     fw.audio1.play();
                 }
-                if(fw.exploded && fw.particles.length === 0) fireworks.splice(i, 1);
+                if(fw.exploded && fw.particles.length === 0) {
+                    fireworks.splice(i, 1).forEach((f)=>{
+                        f.destory()
+                    });
+                };
             });
 
             requestAnimationFrame(animate);
