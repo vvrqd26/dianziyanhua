@@ -20,9 +20,9 @@
 <body>
     <canvas id="canvas"></canvas>
     <audio id="audio" src="./1.mp3"></audio>
-    <!-- <div id="audio_label">
+    <div id="audio_label">
         点击打开声音
-    </div> -->
+    </div>
 
     <script>
         const audio_label = document.getElementById('audio_label');
@@ -358,8 +358,8 @@
         // }); 
 
         canvas.addEventListener('click', e => {
-            // window.mute = false;
-            // audio_label.textContent = '点击关闭声音'
+            window.mute = false;
+            audio_label.textContent = '点击关闭声音'
            
             const fw = new Firework();
             fw.x = e.clientX;
