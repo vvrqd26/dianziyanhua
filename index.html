@@ -8,11 +8,51 @@
         canvas { display: block; }
     </style>
 </head>
+<style>
+    #audio_label {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        color: #fff;
+    }
+</style>
 <body>
     <canvas id="canvas"></canvas>
+    <audio id="audio" src="./1.mp3"></audio>
+    <div id="audio_label">
+        点击打开声音 声音: 关
+    </div>
 
     <script>
-        const canvas = document.getElementById('canvas');
+        const audio_label = document.getElementById('audio_label');
+        window.mute = true
+        audio_label.addEventListener('click',()=>{
+            if(window.mute){
+                window.mute = false
+                audio_label.innerHTML = '点击关闭声音'
+            }else{
+                window.mute = true
+                audio_label.innerHTML = '点击打开声音'
+            }
+        })
+
+        class AudioClip {
+            constructor(start = 0,duration = 1000) {
+                this.audio = document.getElementById('audio').cloneNode();
+                this.audio.currentTime = start;
+                this.duration = duration;
+                this.start = start;
+            }
+            play() {
+                if (window.mute) return;
+                this.audio.play().catch(()=>{});
+                setTimeout(() => {
+                    this.audio.pause();
+                    this.audio.currentTime = this.start;
+                }, this.duration);
+            }
+        }
+
         const ctx = canvas.getContext('2d');
         let fireworks = [];
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -121,6 +161,8 @@
                 this.type = Math.random() > 0.7 ? 'trail' : 'normal';
                 this.trail = [];
                 this.spiralAngle = 0;
+                this.audio1 = new AudioClip(0,1000)
+                this.audio2 = new AudioClip(14,1000)
             }
 
             update() {
@@ -155,6 +197,8 @@
             explode() {
                 if(this.exploded) return;
                 this.exploded = true;
+                this.audio2.play()
+               
                 
                 if(this.explosionType === 'spiral') {
                     const spiralDensity = isMobile ? 12 : 10;
@@ -278,6 +322,9 @@
             fireworks.forEach((fw, i) => {
                 fw.update();
                 fw.draw();
+                if (fw.y < canvas.height) {
+                    fw.audio1.play();
+                }
                 if(fw.exploded && fw.particles.length === 0) fireworks.splice(i, 1);
             });
 
@@ -285,6 +332,7 @@
         }
 
         canvas.addEventListener('touchstart', e => {
+      
             e.preventDefault();
             const touch = e.touches[0];
             const fw = new Firework();
@@ -293,9 +341,10 @@
             fw.type = Math.random() > 0.5 ? 'spiral' : 'trail';
             fw.explode();
             fireworks.push(fw);
-        });
+        }); 
 
         canvas.addEventListener('click', e => {
+           
             const fw = new Firework();
             fw.x = e.clientX;
             fw.y = e.clientY;
