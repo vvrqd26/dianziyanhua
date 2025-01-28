@@ -30,6 +30,7 @@
         audio_label.addEventListener('click',()=>{
             if(window.mute){
                 window.mute = false
+                audio_label.innerHTML = '点击关闭声音'
             }else{
                 window.mute = true
                 audio_label.innerHTML = '点击打开声音'
